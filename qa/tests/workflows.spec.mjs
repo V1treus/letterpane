@@ -12,7 +12,16 @@ const test = base.extend({
     await engine.updateSettings({ language: 'en' });
     const server = await createServer(engine);
     try { await use({ ...server, engine }); }
-    finally { await engine.close(); await new Promise(resolve => server.server.close(resolve)); }
+    finally {
+      try { await engine.close(); }
+      finally {
+        await new Promise((resolve, reject) => {
+          server.server.close(error => error ? reject(error) : resolve());
+          // Playwright may leave the page polling while this fixture shuts down.
+          server.server.closeAllConnections();
+        });
+      }
+    }
   }
 });
 test.beforeEach(async ({ page, app }) => {
