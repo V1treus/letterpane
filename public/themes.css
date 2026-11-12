@@ -1,0 +1,36 @@
+/* Color tokens only. Layout and components live in style.css. */
+:root {
+  --surface:#fff; --surface-soft:#f6f7f9; --surface-alt:#eceef2;
+  --ink:#25282f; --muted:#656c78; --line:#e1e4e9;
+  --side-bg:#f2f3f6; --side-text:#343943; --side-muted:#69717e;
+  --blue:#345fce; --accent-ink:#345fce; --accent-soft:#eef2fc; --accent-contrast:#fff;
+  --danger-ink:#b23845; --danger-bg:#fff0f1; --success-ink:#28745a; --warn-ink:#86601b; --warn-bg:#fff5df;
+  --radius:7px; --radius-small:5px; --font-body:14px; --reading-size:16px; --reading-font:"Segoe UI",sans-serif;
+  --sidebar-width:260px; --list-width:340px; --account-height:58px; --preview-lines:1;
+}
+:root[data-theme=dark] {
+  --surface:#23262c; --surface-soft:#202329; --surface-alt:#30343c;
+  --ink:#edf0f5; --muted:#a9b0bd; --line:#383d46;
+  --side-bg:#1b1e23; --side-text:#d7dde6; --side-muted:#a1aab8;
+  --danger-ink:#ffaab4; --danger-bg:#43282f; --success-ink:#83d5b4; --warn-ink:#edcc89; --warn-bg:#3b3323;
+}
+:root[data-theme=paper] {
+  --surface:#faf8f2; --surface-soft:#f5f2e9; --surface-alt:#ede8db;
+  --ink:#383b32; --muted:#6b6e60; --line:#dedbcf;
+  --side-bg:#eeece3; --side-text:#3d443a; --side-muted:#666e60;
+}
+:root[data-theme=midnight] {
+  --surface:#18232f; --surface-soft:#15202b; --surface-alt:#253443;
+  --ink:#e4edf7; --muted:#a1b3c7; --line:#2f4052;
+  --side-bg:#101a24; --side-text:#d6e2f0; --side-muted:#9aafc6;
+  --danger-ink:#ffb1bb; --danger-bg:#3e2834; --success-ink:#8dd7b6; --warn-ink:#edcc89; --warn-bg:#3b3323;
+}
+:root[data-theme=graphite] {
+  --surface:#171717; --surface-soft:#141414; --surface-alt:#292929;
+  --ink:#f0f0f0; --muted:#b0b0b0; --line:#373737;
+  --side-bg:#0c0c0c; --side-text:#e4e4e4; --side-muted:#ababab;
+  --danger-ink:#ffafb7; --danger-bg:#3e2529; --success-ink:#94dab8; --warn-ink:#e9cb8b; --warn-bg:#383020;
+}
+:root[data-sidebar=contrast] { --side-bg:#18212d; --side-text:#edf1f8; --side-muted:#b4c1d1; }
+:root[data-sidebar=accent] { --side-bg:var(--accent-soft); --side-text:var(--ink); --side-muted:var(--muted); }
+:root[data-corners=square] { --radius:1px; --radius-small:0px; }

@@ -1,0 +1,16 @@
+name: Feature request
+description: Suggest a concrete improvement. Русский / Українська / English.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Write in Russian, Ukrainian or English. Do not include private account data.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+    validations:
+      required: true

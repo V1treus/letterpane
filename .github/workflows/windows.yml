@@ -1,0 +1,73 @@
+name: Windows
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build and verify (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      POSTA_LANG: en
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          package-manager-cache: false
+      - name: Check source files
+        run: npm run check:source
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Syntax and offline tests
+        run: |
+          npm run check
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm test
+      - name: Dependency advisory check
+        run: npm audit --omit=dev --audit-level=high
+      - name: Install isolated UI test tools
+        run: npm --prefix qa ci --ignore-scripts --no-audit --no-fund
+      - name: Install test browser
+        working-directory: qa
+        run: npm run browsers
+      - name: Browser workflow regressions
+        run: npm run test:ui
+      - name: Build folder and ZIP
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip
+      - name: Build single EXE
+        run: npm run build:single
+      - name: Verify both packages
+        run: npm run verify:release
+      - name: Exercise packaged service and encrypted profile
+        run: npm run smoke:release
+      - name: Upload verified preview packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: letterpane-${{ matrix.os }}-${{ github.run_number }}
+          path: |
+            dist/Letterpane Portable *.exe
+            dist/Letterpane-*-win-x64.zip
+            dist/Letterpane-*-SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14

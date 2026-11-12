@@ -1,0 +1,26 @@
+{
+  "name": "letterpane-local",
+  "version": "1.3.9",
+  "private": true,
+  "description": "Локальный OAuth2-клиент Microsoft с управляемой очередью и защищённым хранилищем Windows",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start.ps1",
+    "demo": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start.ps1 -Demo",
+    "build": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1",
+    "build:single": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build-single.ps1",
+    "test": "node --test test/*.test.mjs",
+    "test:ui": "npm --prefix qa test",
+    "check": "node scripts/check.mjs",
+    "check:source": "node scripts/check-source.mjs",
+    "verify:release": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/verify-release.ps1",
+    "smoke:release": "node scripts/smoke-release.mjs"
+  },
+  "dependencies": {
+    "imapflow": "2.10.0",
+    "mailparser": "3.14.1"
+  }
+}

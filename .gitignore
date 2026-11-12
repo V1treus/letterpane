@@ -1,0 +1,35 @@
+node_modules/
+
+# Builds and test output
+.build/
+dist/
+artifacts/
+.test-data/
+playwright-report/
+test-results/
+coverage/
+*.log
+*.tmp
+*.dmp
+
+# Local profiles and credentials
+.data/
+Posta Portable.data/
+Letterpane Portable.data/
+webview-profile/
+webview-demo/
+*.vault
+key.dpapi
+profile.lock
+*.pfx
+*.p12
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# Windows and macOS metadata
+Thumbs.db
+Desktop.ini
+.DS_Store

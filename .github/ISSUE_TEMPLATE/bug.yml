@@ -1,0 +1,48 @@
+name: Bug report
+description: Report a reproducible problem. Русский / Українська / English.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Write in Russian, Ukrainian or English. Do not attach tokens, import lists, profiles or personal mail. Use the demo for screenshots. Security issues belong in a private report; see SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: Letterpane version
+      description: Shown at the bottom of Settings → Data.
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version and display scale
+      placeholder: Windows 11 x64, 150%
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options: [Single EXE, Folder ZIP, Running from source]
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include whether it happens in the demo with 10, 100 or 500 accounts.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the displayed error with all private data removed.
+    validations:
+      required: true
