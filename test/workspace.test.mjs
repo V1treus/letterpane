@@ -55,12 +55,18 @@ test('every theme keeps custom accents readable and system follows the OS', () =
     assert.ok(contrast(palette.ink, surface) >= 4.5); assert.ok(contrast(palette.ink, palette.soft) >= 4.5); assert.ok(contrast(accent, palette.onAccent) >= 4.5);
   }
 });
-test('500-account import and repeated bulk sync remain deduplicated with one active worker', async () => {
+test('multiple imports can exceed 500 accounts and repeated bulk sync stays deduplicated', async () => {
   let calls = 0;
   const engine = await profile(500, { loader: async () => { calls++; return { messages: [], validity: '1' }; } });
-  const ids = [...engine.accounts.keys()]; ids.forEach(id => engine.enqueue(id)); ids.forEach(id => engine.enqueue(id));
-  assert.equal(engine.queue.length, 500); await engine.tick(); await engine.tick(); assert.equal(calls, 1); assert.equal(engine.queue.length, 499);
-  await assert.rejects(engine.import(`extra@example.com:${token}:${client}`), /500/);
+  assert.equal((await engine.import(`extra@example.com:${token}:${client}`)).added, 1);
+  assert.equal(new Engine({ snapshot: engine.snapshot() }).accounts.size, 501);
+  const ids = [...engine.accounts.keys()];
+  assert.equal(engine.enqueueBatch(ids).queued, 501);
+  assert.equal(engine.enqueueBatch(ids).queued, 0);
+  await engine.tick();
+  await engine.tick();
+  assert.equal(calls, 1);
+  assert.equal(engine.queue.length, 500);
 });
 test('bulk pause cancels pending jobs, persists, and prevents auto sync until resumed', async () => {
   const engine = await profile(100); const ids = [...engine.accounts.keys()]; ids.forEach(id => engine.enqueue(id));

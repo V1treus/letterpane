@@ -60,7 +60,7 @@ foreach ($file in @('Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.Wi
 Copy-Item -LiteralPath (Join-Path $sdkRoot 'runtimes\win-x64\native\WebView2Loader.dll') -Destination $outputRoot -Force
 Copy-Item -LiteralPath $nodePath -Destination (Join-Path $outputRoot 'runtime\node.exe') -Force
 foreach ($directory in @('src','public','shared','node_modules')) { Copy-Item -LiteralPath (Join-Path $projectRoot $directory) -Destination $outputRoot -Recurse -Force }
-foreach ($file in @('package.json','package-lock.json','README.md','README.en.md','README.uk.md','PORTABLE.md','DESIGN.md','CHANGELOG.md','CONTRIBUTING.md','RELEASE_CHECKLIST.md','SUPPORT.md','SECURITY.md','THIRD-PARTY-NOTICES.md','Letterpane Demo.cmd')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $outputRoot -Force }
+foreach ($file in @('package.json','package-lock.json','README.md','README.en.md','README.uk.md','LICENSE','PORTABLE.md','DESIGN.md','CHANGELOG.md','CONTRIBUTING.md','RELEASE_CHECKLIST.md','SUPPORT.md','SECURITY.md','THIRD-PARTY-NOTICES.md','Letterpane Demo.cmd')) { Copy-Item -LiteralPath (Join-Path $projectRoot $file) -Destination $outputRoot -Force }
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'docs')) { Copy-Item -LiteralPath (Join-Path $projectRoot 'docs') -Destination $outputRoot -Recurse -Force }
 $nodeLicense = Join-Path (Split-Path $nodePath -Parent) 'LICENSE'
 if (-not (Test-Path -LiteralPath $nodeLicense)) {

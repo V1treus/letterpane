@@ -2,7 +2,7 @@
 
 [Русский](README.md) · English · [Українська](README.uk.md)
 
-A Windows mail client for multiple Microsoft accounts, with messages and verification codes in one window. A local profile supports up to 500 accounts. This is a preview build; see [release checks and remaining work](RELEASE_CHECKLIST.md).
+A Windows mail client for multiple Microsoft accounts, with messages and verification codes in one window. See the [preview release checklist](RELEASE_CHECKLIST.md).
 
 [Downloads](https://github.com/V1treus/letterpane/releases) · [Report a bug](https://github.com/V1treus/letterpane/issues/new/choose)
 
@@ -42,7 +42,7 @@ Keyboard: `Ctrl+K` searches accounts, `/` searches messages, `Alt+1…5` switche
 
 ## Import
 
-Select **Add accounts**, paste a list or open a TXT file, then choose **Check** and **Add**. Maximum import size is 1 MiB. Supported line formats:
+Select **Add accounts**, paste a list or open a TXT file, then choose **Check** and **Add**. Each import accepts up to 500 lines and 1 MiB of text. Split larger lists across imports in the same profile. Use any of these line formats.
 
 ```text
 email:refresh_token:client_id
@@ -115,4 +115,6 @@ Source folders: `src/` for mail, queue and storage; `public/` for the interface;
 
 Run `npm run check:source` before staging source files. After building both distributions, run `npm run verify:release` to check the ZIP and embedded EXE payload and generate SHA256SUMS. `npm run smoke:release` exercises the packaged service with an isolated fictional profile. Component versions and file hashes are included in the package; these checks are not a publisher signature.
 
-See [support](SUPPORT.md), [private security reporting](SECURITY.md) and the [manual QA matrix](docs/TESTING.md). The Letterpane source code does not have a project license yet.
+See [support](SUPPORT.md), [private security reporting](SECURITY.md) and the [manual QA matrix](docs/TESTING.md).
+
+Letterpane source code is licensed under the [GNU AGPLv3](LICENSE). © 2026 V1treus. See [third-party notices](THIRD-PARTY-NOTICES.md) for the terms of bundled components.

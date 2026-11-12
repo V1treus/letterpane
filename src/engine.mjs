@@ -91,7 +91,8 @@ export class Engine extends EventEmitter {
   }
   preview(text) {
     const parsed = parseImport(text);
-    return { emails: parsed.accounts.map(a => ({ email: a.email, exists: [...this.accounts.values()].some(b => a.email === b.email) })), errors: parsed.errors, duplicates: parsed.duplicates };
+    const existingEmails = new Set(Array.from(this.accounts.values(), account => account.email));
+    return { emails: parsed.accounts.map(a => ({ email: a.email, exists: existingEmails.has(a.email) })), errors: parsed.errors, duplicates: parsed.duplicates };
   }
   async import(text, authority = 'microsoft', replace = false, group = '') {
     if (this.demo) throw new AppError('DEMO', 'Настоящие токены нельзя добавить в деморежим. Перезапустите Letterpane без --demo.');
@@ -99,24 +100,25 @@ export class Engine extends EventEmitter {
     group = cleanText(group, 40, 'группы');
     const parsed = parseImport(text);
     if (!parsed.accounts.length) throw new AppError('IMPORT', 'Нет корректных строк. Проверьте формат.');
-    const updating = parsed.accounts.filter(input => [...this.accounts.values()].some(a => a.email === input.email));
-    if (replace && updating.some(input => this.accounts.get(this.active?.accountId)?.email === input.email)) throw new AppError('BUSY', 'Дождитесь завершения текущего запроса перед заменой токена.');
-    const count = [...this.accounts.values()].length + parsed.accounts.length - updating.length;
-    if (count > 500) throw new AppError('ACCOUNT_LIMIT', 'В одном профиле поддерживается до 500 ящиков.');
+    const activeEmail = this.accounts.get(this.active?.accountId)?.email;
+    if (replace && parsed.accounts.some(input => input.email === activeEmail)) throw new AppError('BUSY', 'Дождитесь завершения текущего запроса перед заменой токена.');
+    const existingByEmail = new Map();
+    for (const account of this.accounts.values()) {
+      if (!existingByEmail.has(account.email)) existingByEmail.set(account.email, account);
+    }
     let added = 0, updated = 0, skipped = parsed.duplicates;
     const backup = new Map(this.accounts);
+    const replaced = new Set();
     for (const input of parsed.accounts) {
-      const existing = [...this.accounts.values()].find(a => a.email === input.email);
+      const existing = existingByEmail.get(input.email);
       if (existing && !replace) { skipped++; continue; }
       const account = { ...input, id: existing?.id || randomUUID(), authority, label: existing?.label || '', group: group || existing?.group || '', note: existing?.note || '', favorite: !!existing?.favorite, userPaused: !!existing?.userPaused, enabled: true, authBlocked: false, authFailure: null, nextAllowed: existing?.nextAllowed || 0, lastSync: 0, cache: {}, status: existing?.userPaused ? 'paused' : 'idle', error: '' };
       this.accounts.set(account.id, account);
+      if (existing) replaced.add(account.id);
       existing ? updated++ : added++;
     }
     try { await this.persist(); } catch (e) { this.accounts = backup; throw e; }
-    if (replace) {
-      const replaced = new Set(updating.map(input => [...this.accounts.values()].find(a => a.email === input.email)?.id));
-      this.dropQueued(task => task.recheck && replaced.has(task.accountId));
-    }
+    if (replaced.size) this.dropQueued(task => task.recheck && replaced.has(task.accountId));
     this.log(message('log.import', { added, updated, skipped }));
     return { added, updated, skipped, errors: parsed.errors };
   }
@@ -327,7 +329,7 @@ export class Engine extends EventEmitter {
     this.trimCache(); this.logs.length = Math.min(this.logs.length, this.settings.logLimit); this.changed();
   }
   selection(ids) {
-    if (!Array.isArray(ids) || !ids.length || ids.length > 500 || ids.some(id => typeof id !== 'string')) throw new AppError('SELECTION', 'Выберите от 1 до 500 ящиков.');
+    if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string')) throw new AppError('SELECTION', message('error.selection'));
     return [...new Set(ids)].map(id => this.account(id));
   }
   async updateMeta(id, input) {

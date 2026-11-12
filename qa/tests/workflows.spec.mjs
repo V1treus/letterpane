@@ -437,7 +437,7 @@ test.describe('Import', () => {
   });
 });
 
-test.describe('500-account workflow', () => {
+test.describe('large-account workflow', () => {
   test.use({ real: true });
   test('imports a Windows TXT, keeps selection across pages and reports or cancels each outcome', async ({ page, app }) => {
     test.setTimeout(45000);
@@ -449,10 +449,15 @@ test.describe('500-account workflow', () => {
     await expect(page.locator('#import-submit')).toBeEnabled();
     await page.locator('#import-submit').click();
     await expect(page.locator('#mail-count')).toHaveText('500');
+    await page.locator('#import-button').click();
+    await page.locator('#account-input').fill('reader.501@example.com|fictional-refresh-token-for-batch-ui|12345678-1234-1234-1234-123456789abc');
+    await page.locator('#preview-button').click();
+    await page.locator('#import-submit').click();
+    await expect(page.locator('#mail-count')).toHaveText('501');
     expect(app.engine.queue).toHaveLength(0);
 
     await page.locator('[data-view=accounts]').click();
-    await expect(page.locator('#manager-page')).toHaveText('1 / 10');
+    await expect(page.locator('#manager-page')).toHaveText('1 / 11');
     await page.locator('#check-page').check();
     await page.locator('#manager-next').click();
     await page.locator('#check-page').check();
@@ -462,16 +467,17 @@ test.describe('500-account workflow', () => {
     await page.locator('#bulk-confirm').click();
     await expect(page.locator('#bulk-dialog')).toBeHidden();
     await page.locator('#manager-group').selectOption('Batch QA');
-    await expect(page.locator('#manager-summary')).toContainText('Found 100 of 500');
+    await expect(page.locator('#manager-summary')).toContainText('Found 100 of 501');
     await expect(page.locator('#manager-page')).toHaveText('1 / 2');
     await expect(page.locator('#check-page')).toBeChecked();
     await page.locator('#manager-group').selectOption('');
-    await page.locator('#manager-search').fill('reader.500');
-    await expect(page.locator('#manager-summary')).toContainText('Found 1 of 500');
+    await page.locator('#manager-search').fill('reader.501');
+    await expect(page.locator('#manager-summary')).toContainText('Found 1 of 501');
+    await expect(page.locator('[data-account-row]')).toContainText('reader.501@example.com');
     await expect(page.locator('#selected-count')).toHaveText('Selected: 100 · outside filter: 100');
     await page.locator('#manager-search').fill('');
     await page.locator('#select-filtered').click();
-    await expect(page.locator('#selected-count')).toHaveText('Selected: 500');
+    await expect(page.locator('#selected-count')).toHaveText('Selected: 501');
 
     let clock = Date.now(), calls = 0;
     app.engine.now = () => clock;
@@ -486,12 +492,12 @@ test.describe('500-account workflow', () => {
       return { messages: [], validity: 'fictional' };
     };
     await page.locator('[data-bulk=sync]').click();
-    await expect(page.locator('#toast')).toContainText('Queued: 496. Skipped: 4.');
+    await expect(page.locator('#toast')).toContainText('Queued: 497. Skipped: 4.');
     for (const reason of ['Access denied: 1', 'Account paused: 1', 'Attempts stopped: 1', 'Already queued or running: 1']) await expect(page.locator('#toast')).toContainText(reason);
     await page.getByRole('button', { name: 'Refresh report', exact: true }).click();
     const card = page.locator('#batch-card');
     const count = name => card.locator(`[data-batch-count=${name}] strong`);
-    await expect(count('pending')).toHaveText('496');
+    await expect(count('pending')).toHaveText('497');
     await expect(count('skipped')).toHaveText('4');
     await card.locator('summary').click();
     await card.locator('#batch-filter').selectOption('skipped');
@@ -502,11 +508,11 @@ test.describe('500-account workflow', () => {
     clock += 5000; await app.engine.tick();
     await expect(count('updated')).toHaveText('1');
     await expect(count('failed')).toHaveText('1');
-    await expect(count('pending')).toHaveText('494');
+    await expect(count('pending')).toHaveText('495');
     await expect(card.locator('#batch-filter')).toHaveValue('skipped');
     await card.locator('#batch-cancel').click();
-    await expect(count('cancelled')).toHaveText('494');
-    await expect(card.locator('progress')).toHaveAttribute('value', '500');
+    await expect(count('cancelled')).toHaveText('495');
+    await expect(card.locator('progress')).toHaveAttribute('value', '501');
     await expect(card.locator('#batch-cancel')).toHaveCount(0);
     expect(app.engine.queue.map(task => task.accountId)).toEqual([busy.id]);
     await card.locator('#batch-filter').selectOption('updated');

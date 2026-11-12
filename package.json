@@ -2,6 +2,7 @@
   "name": "letterpane-local",
   "version": "1.3.9",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Локальный OAuth2-клиент Microsoft с управляемой очередью и защищённым хранилищем Windows",
   "type": "module",
   "engines": {

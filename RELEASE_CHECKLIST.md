@@ -23,8 +23,9 @@
 
 ## До стабильного публичного релиза
 
-- [ ] Выбрать лицензию на собственный код с владельцем проекта и добавить LICENSE. Решение отложено владельцем 4 ноября 2026; файл лицензии не добавлялся.
-- [ ] Опубликовать репозиторий и получить успешный удалённый прогон Windows CI. Workflow подготовлен; Git remote пока отсутствует.
+- [x] Добавить GNU AGPLv3 для исходного кода Letterpane.
+- [ ] Опубликовать репозиторий и подтвердить успешный прогон Windows CI на коммите релиза.
+- [ ] При публикации EXE и ZIP дать получателям доступ к соответствующим исходникам и сценариям сборки того же коммита.
 - [ ] Проверить запуск на чистых Windows 10/11, путь с пробелами, отсутствие права записи и масштаб 125/150/200%.
 - [ ] Расширить проверку Outlook.com и Microsoft 365: отзыв доступа, ограничения организации и восстановление после сети. Базовое чтение одного Outlook.com уже проверено.
 - [ ] Дать английский и украинский тексты носителям языка для независимой редакторской проверки.
@@ -42,6 +43,6 @@
 - DPAPI привязывает профиль к пользователю Windows. Перенос EXE не делает зашифрованные токены доступными под другой учётной записью.
 - Зависимость от системного WebView2 остаётся и в версии с одним EXE.
 
-The current build is a preview. Windows workflows and local package verification are implemented; a remote CI run has not happened because this checkout has no Git remote. The owner deferred the license decision. Clean-machine and real-provider QA, independent language review, native keyboard checks, working support/security reporting channels and a signing decision remain. OAuth onboarding, sending mail, attachments and HTML viewing are not implemented. Offline tests use fictional data and do not establish Microsoft compatibility under every tenant policy.
+The current build is a preview. Confirm Windows CI on the release commit and provide the corresponding source and build scripts with the binaries. Clean-machine and real-provider QA, independent language review, native keyboard checks, working support/security reporting channels and a signing decision remain. OAuth onboarding, sending mail, attachments and HTML viewing are not implemented. Offline tests use fictional data and do not establish Microsoft compatibility under every tenant policy.
 
-Поточна збірка є попередньою. Windows workflow та перевірки пакета реалізовано; віддаленого запуску ще не було, бо Git remote відсутній. Власник відклав вибір ліцензії. Залишаються перевірки на чистій системі та з провайдером, незалежна редактура, клавіатурні сценарії в нативному вікні, робочі канали підтримки й рішення щодо підпису. OAuth-вхід для отримання токена, надсилання листів, вкладення та HTML-перегляд поки відсутні.
+Поточна збірка є попередньою. Підтвердьте проходження Windows CI на коміті випуску й надайте відповідний вихідний код і сценарії збірки разом із бінарними файлами. Залишаються перевірки на чистій системі та з провайдером, незалежна редактура, клавіатурні сценарії в нативному вікні, робочі канали підтримки й рішення щодо підпису. OAuth-вхід для отримання токена, надсилання листів, вкладення та HTML-перегляд поки відсутні.

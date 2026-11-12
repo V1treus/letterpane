@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 export const releaseDirectories = ['src', 'public', 'shared', 'runtime', 'node_modules', 'docs'];
-export const releaseDocuments = ['package.json', 'package-lock.json', 'README.md', 'README.en.md', 'README.uk.md', 'PORTABLE.md', 'DESIGN.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'RELEASE_CHECKLIST.md', 'SUPPORT.md', 'SECURITY.md', 'THIRD-PARTY-NOTICES.md', 'Letterpane Demo.cmd', 'WEBVIEW2-LICENSE.txt', 'WEBVIEW2-NOTICE.txt', 'build-info.json'];
+export const releaseDocuments = ['package.json', 'package-lock.json', 'README.md', 'README.en.md', 'README.uk.md', 'LICENSE', 'PORTABLE.md', 'DESIGN.md', 'CHANGELOG.md', 'CONTRIBUTING.md', 'RELEASE_CHECKLIST.md', 'SUPPORT.md', 'SECURITY.md', 'THIRD-PARTY-NOTICES.md', 'Letterpane Demo.cmd', 'WEBVIEW2-LICENSE.txt', 'WEBVIEW2-NOTICE.txt', 'build-info.json'];
 export const releaseBinaries = ['Letterpane.exe', 'Letterpane.exe.config', 'Letterpane Demo.exe', 'Letterpane Demo.exe.config', 'Letterpane.ico', 'Microsoft.Web.WebView2.Core.dll', 'Microsoft.Web.WebView2.WinForms.dll', 'WebView2Loader.dll'];
 export function allowedReleasePath(path) {
   if (typeof path !== 'string' || !path || path.includes('\\') || path.includes(':') || /[\x00-\x1f\x7f]/.test(path)) return false;
