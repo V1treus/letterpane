@@ -23,7 +23,26 @@ if (-not (Test-Path -LiteralPath $sdkArchive)) {
     Invoke-WebRequest -Uri "https://api.nuget.org/v3-flatcontainer/microsoft.web.webview2/$webviewVersion/microsoft.web.webview2.$webviewVersion.nupkg" -OutFile $sdkArchive
 }
 if ((Get-ReleaseHash $sdkArchive) -ne 'F492BBF547D0DA329553B6727435B677579B1E9F91CC9E4A1AD029366D5F23D0') { throw 'WebView2 SDK archive checksum mismatch. Remove the cached archive and download it again.' }
-Expand-Archive -LiteralPath $sdkArchive -DestinationPath $sdkRoot -Force
+# Extract only the files the build uses. Windows PowerShell's Expand-Archive can
+# call an unavailable .NET overload when the second build overwrites SDK files.
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$sdk = [System.IO.Compression.ZipFile]::OpenRead($sdkArchive)
+try {
+    $sdkFiles = @(
+        'lib/net462/Microsoft.Web.WebView2.Core.dll',
+        'lib/net462/Microsoft.Web.WebView2.WinForms.dll',
+        'runtimes/win-x64/native/WebView2Loader.dll',
+        'LICENSE.txt',
+        'NOTICE.txt'
+    )
+    foreach ($name in $sdkFiles) {
+        $entry = $sdk.GetEntry($name)
+        if (-not $entry) { throw "Missing WebView2 SDK file: $name" }
+        $target = Join-Path $sdkRoot $name
+        New-Item -ItemType Directory -Path ([System.IO.Path]::GetDirectoryName($target)) -Force | Out-Null
+        [System.IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $target, $true)
+    }
+} finally { $sdk.Dispose() }
 if (-not (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules\imapflow'))) { throw 'Run npm ci --ignore-scripts first.' }
 New-Item -ItemType Directory -Path $outputRoot -Force | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $outputRoot 'runtime') -Force | Out-Null
