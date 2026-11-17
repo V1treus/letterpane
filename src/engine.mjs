@@ -26,6 +26,16 @@ export class Engine extends EventEmitter {
     this.lastBatch = null;
     this.globalNext = snapshot?.globalNext || 0;
     this.holdUntil = snapshot?.holdUntil || 0;
+    this.pendingDispatch = null;
+    this.profileTail = Promise.resolve();
+    this.profileWrites = 0;
+    if (snapshot?.pendingDispatch) {
+      const { accountId, requestGap, accountGap } = snapshot.pendingDispatch;
+      const recoveredAt = this.now();
+      this.globalNext = Math.max(this.globalNext, recoveredAt + Math.max(requestGap, this.settings.requestGap) * 1000);
+      const account = this.accounts.get(accountId);
+      if (account) account.nextAllowed = Math.max(account.nextAllowed || 0, recoveredAt + Math.max(accountGap, this.settings.accountGap) * 1000);
+    }
     this.logs = [];
     this.revision = 0;
     this.networkFailures = 0;
@@ -37,14 +47,38 @@ export class Engine extends EventEmitter {
     this.logs.length = Math.min(this.logs.length, this.settings.logLimit);
     this.changed();
   }
-  snapshot() {
-    return { settings: this.settings, globalNext: this.globalNext, holdUntil: this.holdUntil,
-      accounts: [...this.accounts.values()].map(({ id, email, clientId, refreshToken, authority, enabled, authBlocked, authFailure, nextAllowed, lastSync, label, group, note, favorite, userPaused }) => ({ id, email, clientId, refreshToken, authority, enabled, authBlocked, authFailure: authBlocked && AUTH_ERRORS.has(authFailure) ? authFailure : null, nextAllowed, lastSync, label, group, note, favorite, userPaused })) };
+  snapshot({ settings = this.settings, changes } = {}) {
+    const accounts = changes ? new Map(this.accounts) : this.accounts;
+    if (changes) {
+      for (const [id, change] of changes) {
+        if (change === null) accounts.delete(id);
+        else accounts.set(id, { ...accounts.get(id), ...change });
+      }
+    }
+    return { settings, globalNext: this.globalNext, holdUntil: this.holdUntil, pendingDispatch: this.pendingDispatch,
+      accounts: [...accounts.values()].map(({ id, email, clientId, refreshToken, authority, enabled, authBlocked, authFailure, nextAllowed, lastSync, label, group, note, favorite, userPaused }) => ({ id, email, clientId, refreshToken, authority, enabled, authBlocked, authFailure: authBlocked && AUTH_ERRORS.has(authFailure) ? authFailure : null, nextAllowed, lastSync, label, group, note, favorite, userPaused })) };
   }
-  async persist() {
-    if (!this.vault) return;
-    try { await this.vault.save(this.snapshot()); }
-    catch { this.settings.paused = true; this.changed(); throw new AppError('SAVE', 'Не удалось сохранить защищённое хранилище. Очередь остановлена. Проверьте доступ к папке .data.', { status: 500 }); }
+  writeProfile(prepare = () => ({})) {
+    this.profileWrites++;
+    const write = this.profileTail.then(async () => {
+      const edit = prepare();
+      try { if (this.vault) await this.vault.save(this.snapshot(edit)); }
+      catch {
+        this.settings = { ...this.settings, paused: true };
+        this.changed();
+        throw new AppError('SAVE', 'Не удалось сохранить защищённое хранилище. Очередь остановлена. Проверьте доступ к папке .data.', { status: 500 });
+      }
+      return edit.commit?.();
+    }).finally(() => { this.profileWrites--; });
+    this.profileTail = write.catch(() => {});
+    return write;
+  }
+  editProfile(prepare) {
+    // Prepare and publish each edit in the same queue used by worker snapshots.
+    return this.writeProfile(() => {
+      if (this.closed) throw new AppError('SESSION', message('error.session'), { status: 409 });
+      return prepare();
+    });
   }
   state() {
     const now = this.now();
@@ -100,27 +134,31 @@ export class Engine extends EventEmitter {
     group = cleanText(group, 40, 'группы');
     const parsed = parseImport(text);
     if (!parsed.accounts.length) throw new AppError('IMPORT', 'Нет корректных строк. Проверьте формат.');
-    const activeEmail = this.accounts.get(this.active?.accountId)?.email;
-    if (replace && parsed.accounts.some(input => input.email === activeEmail)) throw new AppError('BUSY', 'Дождитесь завершения текущего запроса перед заменой токена.');
-    const existingByEmail = new Map();
-    for (const account of this.accounts.values()) {
-      if (!existingByEmail.has(account.email)) existingByEmail.set(account.email, account);
-    }
-    let added = 0, updated = 0, skipped = parsed.duplicates;
-    const backup = new Map(this.accounts);
-    const replaced = new Set();
-    for (const input of parsed.accounts) {
-      const existing = existingByEmail.get(input.email);
-      if (existing && !replace) { skipped++; continue; }
-      const account = { ...input, id: existing?.id || randomUUID(), authority, label: existing?.label || '', group: group || existing?.group || '', note: existing?.note || '', favorite: !!existing?.favorite, userPaused: !!existing?.userPaused, enabled: true, authBlocked: false, authFailure: null, nextAllowed: existing?.nextAllowed || 0, lastSync: 0, cache: {}, status: existing?.userPaused ? 'paused' : 'idle', error: '' };
-      this.accounts.set(account.id, account);
-      if (existing) replaced.add(account.id);
-      existing ? updated++ : added++;
-    }
-    try { await this.persist(); } catch (e) { this.accounts = backup; throw e; }
-    if (replaced.size) this.dropQueued(task => task.recheck && replaced.has(task.accountId));
-    this.log(message('log.import', { added, updated, skipped }));
-    return { added, updated, skipped, errors: parsed.errors };
+    return this.editProfile(() => {
+      const activeEmail = this.accounts.get(this.active?.accountId)?.email;
+      if (replace && parsed.accounts.some(input => input.email === activeEmail)) throw new AppError('BUSY', 'Дождитесь завершения текущего запроса перед заменой токена.');
+      const existingByEmail = new Map();
+      for (const account of this.accounts.values()) {
+        if (!existingByEmail.has(account.email)) existingByEmail.set(account.email, account);
+      }
+      let added = 0, updated = 0, skipped = parsed.duplicates;
+      const changes = new Map();
+      const replaced = new Set();
+      for (const input of parsed.accounts) {
+        const existing = existingByEmail.get(input.email);
+        if (existing && !replace) { skipped++; continue; }
+        const account = { ...input, id: existing?.id || randomUUID(), authority, label: existing?.label || '', group: group || existing?.group || '', note: existing?.note || '', favorite: !!existing?.favorite, userPaused: !!existing?.userPaused, enabled: true, authBlocked: false, authFailure: null, nextAllowed: existing?.nextAllowed || 0, lastSync: 0, cache: {}, status: existing?.userPaused ? 'paused' : 'idle', error: '' };
+        changes.set(account.id, account);
+        if (existing) replaced.add(account.id);
+        existing ? updated++ : added++;
+      }
+      return { changes, commit: () => {
+        for (const [id, account] of changes) this.accounts.set(id, account);
+        if (replaced.size) this.dropQueued(task => task.recheck && replaced.has(task.accountId));
+        this.log(message('log.import', { added, updated, skipped }));
+        return { added, updated, skipped, errors: parsed.errors };
+      } };
+    });
   }
   enqueue(accountId, folder = 'inbox', attempt = 1, notBefore = 0) {
     if (!['inbox', 'junk'].includes(folder)) throw new AppError('FOLDER', 'Неизвестная папка.');
@@ -229,7 +267,7 @@ export class Engine extends EventEmitter {
     return { queued: true };
   }
   async tick() {
-    if (this.active || this.closed || this.settings.paused) return;
+    if (this.active || this.profileWrites || this.closed || this.settings.paused) return;
     const now = this.now();
     if (this.settings.auto) {
       for (const account of this.accounts.values()) {
@@ -251,18 +289,21 @@ export class Engine extends EventEmitter {
       account.errorMessage = describe(account.error);
       this.finishBatchTask(task, 'failed', null, account.errorMessage);
       this.dropQueued(t => t.accountId === account.id, 'skipped', 'disabled');
-      await this.persist(); this.log(message('log.accountError', { email: account.email, error: account.errorMessage }), 'warning'); return;
+      await this.writeProfile(); this.log(message('log.accountError', { email: account.email, error: account.errorMessage }), 'warning'); return;
     }
     this.active = task;
     account.abortController = new AbortController();
     account.status = 'syncing';
-    account.nextAllowed = now + this.settings.accountGap * 1000;
-    this.globalNext = now + this.settings.requestGap * 1000;
+    const { requestGap, accountGap } = this.settings;
+    this.globalNext = now + requestGap * 1000;
+    account.nextAllowed = now + accountGap * 1000;
+    this.pendingDispatch = { accountId: account.id, requestGap, accountGap };
     this.changed();
     try {
-      // Save cooldown before dispatch so restarting cannot clear rate limits.
-      await this.persist();
-      // Pause/close can arrive while the cooldown is being saved.
+      // A crash after dispatch can leave only this reservation on disk.
+      await this.writeProfile();
+      // Apply any edits that arrived during the reservation before contacting Microsoft.
+      while (this.profileWrites && !this.closed) await this.profileTail;
       if (this.closed) return;
       if (task.cancelled || task.stopRetry || (!task.recheck && (account.userPaused || account.authBlocked || !account.enabled))) {
         account.status = account.authBlocked ? 'auth' : account.userPaused ? 'paused' : !account.enabled ? 'error' : account.lastSync ? 'ok' : 'idle';
@@ -272,11 +313,14 @@ export class Engine extends EventEmitter {
       if (this.settings.paused) { this.queue.unshift(task); account.status = 'queued'; return; }
       // Count the delay from dispatch, including time spent waiting for storage.
       const dispatchedAt = this.now();
-      this.globalNext = Math.max(this.globalNext, dispatchedAt + this.settings.requestGap * 1000);
-      account.nextAllowed = Math.max(account.nextAllowed, dispatchedAt + this.settings.accountGap * 1000);
+      this.globalNext = Math.max(this.globalNext, dispatchedAt + requestGap * 1000);
+      account.nextAllowed = Math.max(account.nextAllowed || 0, dispatchedAt + accountGap * 1000);
+      this.changed();
       // A manual access check retains its auth block until a complete read succeeds.
       if (task.recheck) { account.accessToken = null; account.expiresAt = 0; }
-      const result = await this.loader(account, task.folder, task.recheck ? Math.min(5, this.settings.limit) : this.settings.limit, { saveTokens: () => this.persist() });
+      const result = await this.loader(account, task.folder, task.recheck ? Math.min(5, this.settings.limit) : this.settings.limit, { saveTokens: () => this.writeProfile() });
+      // Order the worker result after edits that began while the request was active.
+      while (this.profileWrites && !this.closed) await this.profileTail;
       if (this.closed || !this.accounts.has(account.id)) return;
       account.cache[task.folder] = result;
       result.lastUsed = this.now();
@@ -289,6 +333,7 @@ export class Engine extends EventEmitter {
       this.networkFailures = 0;
       this.log(message('log.refreshed', { email: account.email, count: result.messages.length }));
     } catch (raw) {
+      while (this.profileWrites && !this.closed) await this.profileTail;
       if (this.closed || !this.accounts.has(account.id)) return;
       const error = safeError(raw);
       account.error = error.message;
@@ -299,7 +344,7 @@ export class Engine extends EventEmitter {
         this.dropQueued(t => t.accountId === account.id, 'skipped', 'auth');
       } else if (error.retryable) {
         const delay = Math.max(ACCOUNT_GAP * 2 ** (task.attempt - 1) + this.jitter(), error.retryAfter);
-        account.nextAllowed = Math.max(account.nextAllowed, this.now() + delay);
+        account.nextAllowed = Math.max(account.nextAllowed || 0, this.now() + delay);
         if (error.code === 'THROTTLED') this.holdUntil = Math.max(this.holdUntil, this.now() + Math.max(60000, error.retryAfter));
         this.networkFailures++;
         if (this.networkFailures >= 3) { this.holdUntil = Math.max(this.holdUntil, this.now() + 120000); this.networkFailures = 0; }
@@ -316,61 +361,82 @@ export class Engine extends EventEmitter {
       if (account.status !== 'waiting') this.finishBatchTask(task, 'failed', null, account.errorMessage);
       this.log(message('log.accountError', { email: account.email, error: account.errorMessage }), 'warning');
     } finally {
+      this.pendingDispatch = null;
+      try { await this.writeProfile(); } catch (e) { this.log(e.message, 'error'); }
       this.active = null;
-      try { await this.persist(); } catch (e) { this.log(e.message, 'error'); }
       this.changed();
       this.emit('idle');
     }
   }
   async updateSettings(input) {
-    const previous = this.settings;
-    this.settings = validateSettings(input, this.settings);
-    try { await this.persist(); } catch (e) { this.settings = { ...previous, paused: true }; throw e; }
-    this.trimCache(); this.logs.length = Math.min(this.logs.length, this.settings.logLimit); this.changed();
+    return this.editProfile(() => {
+      const settings = validateSettings(input, this.settings);
+      return { settings, commit: () => {
+        this.settings = settings;
+        this.trimCache();
+        this.logs.length = Math.min(this.logs.length, settings.logLimit);
+        this.changed();
+      } };
+    });
   }
   selection(ids) {
     if (!Array.isArray(ids) || !ids.length || ids.some(id => typeof id !== 'string')) throw new AppError('SELECTION', message('error.selection'));
     return [...new Set(ids)].map(id => this.account(id));
   }
   async updateMeta(id, input) {
-    const account = this.account(id);
-    const previous = { label: account.label, group: account.group, note: account.note, favorite: account.favorite };
-    const next = {
-      label: cleanText(input.label ?? account.label ?? '', 60, 'названия'),
-      group: cleanText(input.group ?? account.group ?? '', 40, 'группы'),
-      note: cleanText(input.note ?? account.note ?? '', 250, 'заметки'),
-      favorite: input.favorite ?? account.favorite ?? false
-    };
-    if (typeof next.favorite !== 'boolean') throw new AppError('METADATA', 'Проверьте признак избранного.');
-    Object.assign(account, next);
-    try { await this.persist(); } catch (e) { Object.assign(account, previous); throw e; }
-    this.changed();
+    return this.editProfile(() => {
+      const account = this.account(id);
+      const next = {
+        label: cleanText(input.label ?? account.label ?? '', 60, 'названия'),
+        group: cleanText(input.group ?? account.group ?? '', 40, 'группы'),
+        note: cleanText(input.note ?? account.note ?? '', 250, 'заметки'),
+        favorite: input.favorite ?? account.favorite ?? false
+      };
+      if (typeof next.favorite !== 'boolean') throw new AppError('METADATA', 'Проверьте признак избранного.');
+      return { changes: new Map([[id, next]]), commit: () => {
+        Object.assign(account, next);
+        this.changed();
+      } };
+    });
   }
   async bulk(ids, action, value, confirmed = false) {
-    const accounts = this.selection(ids);
     if (!['pause', 'resume', 'favorite', 'group', 'remove', 'clearCache'].includes(action)) throw new AppError('ACTION', 'Неизвестное действие.');
     if (action === 'remove' && !confirmed) throw new AppError('CONFIRM', 'Подтвердите удаление выбранных ящиков.');
-    if (action === 'remove' && accounts.some(a => a.id === this.active?.accountId)) throw new AppError('BUSY', 'Один из выбранных ящиков обновляется. Дождитесь завершения запроса.');
     if (action === 'group') value = cleanText(value, 40, 'группы');
     if (action === 'favorite' && typeof value !== 'boolean') throw new AppError('METADATA', 'Проверьте признак избранного.');
-    const backups = accounts.map(account => [account, { ...account }]);
-    let updated = 0, skipped = 0;
-    for (const account of accounts) {
-      if (action === 'resume' && account.authBlocked) { skipped++; continue; }
-      if (action === 'pause') { account.userPaused = true; if (this.active?.recheck && this.active.accountId === account.id) this.active.cancelled = true; if (this.active?.accountId !== account.id) account.status = account.authBlocked ? 'auth' : 'paused'; }
-      if (action === 'resume') { account.userPaused = false; account.enabled = true; account.error = ''; account.errorMessage = null; account.status = this.active?.accountId === account.id ? 'syncing' : 'idle'; account.autoNext = 0; }
-      if (action === 'favorite') account.favorite = value;
-      if (action === 'group') account.group = value;
-      if (action === 'remove') this.accounts.delete(account.id);
-      if (action === 'clearCache') account.cache = {};
-      updated++;
-    }
-    try { await this.persist(); }
-    catch (e) { for (const [account, original] of backups) { Object.assign(account, original); this.accounts.set(account.id, account); } throw e; }
-    if (['pause', 'remove'].includes(action)) { const ids = new Set(accounts.map(a => a.id)); this.dropQueued(t => ids.has(t.accountId)); }
-    const labels = { pause: 'Приостановлены', resume: 'Возобновлены', favorite: 'Избранное обновлено', group: 'Группа изменена', remove: 'Удалены из профиля', clearCache: 'Кэш освобождён' };
-    this.log(message('log.bulk', { action: describe(labels[action]), count: updated, skipped }));
-    return { updated, skipped };
+    return this.editProfile(() => {
+      const accounts = this.selection(ids);
+      if (action === 'remove' && accounts.some(a => a.id === this.active?.accountId)) throw new AppError('BUSY', 'Один из выбранных ящиков обновляется. Дождитесь завершения запроса.');
+      const changes = new Map();
+      const edits = { pause: { userPaused: true }, resume: { userPaused: false, enabled: true }, favorite: { favorite: value }, group: { group: value }, remove: null };
+      for (const account of accounts) {
+        if (action === 'resume' && account.authBlocked) continue;
+        if (action !== 'clearCache') changes.set(account.id, edits[action]);
+      }
+      return { changes, commit: () => {
+        let updated = 0;
+        for (const account of accounts) {
+          const running = this.active?.accountId === account.id && this.pendingDispatch !== null;
+          if (action === 'resume' && !changes.has(account.id)) continue;
+          if (action === 'remove') this.accounts.delete(account.id);
+          else if (action === 'clearCache') account.cache = {};
+          else Object.assign(account, changes.get(account.id));
+          if (action === 'pause') {
+            if (running && this.active.recheck) this.active.cancelled = true;
+            if (!running) account.status = account.authBlocked ? 'auth' : 'paused';
+          }
+          if (action === 'resume') {
+            Object.assign(account, { error: '', errorMessage: null, status: running ? 'syncing' : 'idle', autoNext: 0 });
+          }
+          updated++;
+        }
+        if (action === 'pause' || action === 'remove') this.dropQueued(t => changes.has(t.accountId));
+        const skipped = accounts.length - updated;
+        const labels = { pause: 'Приостановлены', resume: 'Возобновлены', favorite: 'Избранное обновлено', group: 'Группа изменена', remove: 'Удалены из профиля', clearCache: 'Кэш освобождён' };
+        this.log(message('log.bulk', { action: describe(labels[action]), count: updated, skipped }));
+        return { updated, skipped };
+      } };
+    });
   }
   async resume(id) {
     const account = this.account(id);
@@ -378,12 +444,15 @@ export class Engine extends EventEmitter {
     await this.bulk([id], 'resume');
   }
   async remove(id) {
-    const account = this.account(id);
-    if (this.active?.accountId === id) throw new AppError('BUSY', 'Дождитесь завершения запроса перед удалением ящика.');
-    this.accounts.delete(id);
-    try { await this.persist(); } catch (e) { this.accounts.set(id, account); throw e; }
-    this.dropQueued(t => t.accountId === id);
-    this.log('Ящик удалён из локального профиля.');
+    return this.editProfile(() => {
+      this.account(id);
+      if (this.active?.accountId === id) throw new AppError('BUSY', 'Дождитесь завершения запроса перед удалением ящика.');
+      return { changes: new Map([[id, null]]), commit: () => {
+        this.accounts.delete(id);
+        this.dropQueued(t => t.accountId === id);
+        this.log('Ящик удалён из локального профиля.');
+      } };
+    });
   }
   cancel(taskId) {
     if (this.dropQueued(task => task.id === taskId)) this.changed();
@@ -394,6 +463,7 @@ export class Engine extends EventEmitter {
     const idle = this.active ? new Promise(resolve => this.once('idle', resolve)) : Promise.resolve();
     for (const a of this.accounts.values()) { a.abortController?.abort(); a.activeClient?.close(); }
     await idle;
+    await this.profileTail;
     await this.vault?.close();
   }
 }

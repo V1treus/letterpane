@@ -4,11 +4,12 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { Engine } from '../src/engine.mjs';
-import { Vault } from '../src/vault.mjs';
+import { unseal, Vault } from '../src/vault.mjs';
 import { createServer } from '../src/server.mjs';
 
 const account = () => ({ id: 'test-account', email: 'test@example.com', refreshToken: 'private-refresh-token-for-local-tests-only', clientId: '12345678-1234-1234-1234-123456789abc', enabled: false, userPaused: true, nextAllowed: 9000000 });
 const headers = app => ({ Authorization: `Bearer ${app.token}`, 'Content-Type': 'application/json' });
+const activeAccount = () => ({ ...account(), enabled: true, userPaused: false, nextAllowed: 0 });
 
 test('storage failure changes the state revision so polling reveals the paused queue', async () => {
   const engine = new Engine({ snapshot: { accounts: [account()] }, vault: { save: async () => { throw new Error('synthetic storage failure'); } } });
@@ -61,6 +62,117 @@ test('overlapping HTTP edits do not include or erase changes from a failed save'
     assert.equal(stored.settings.paused, true);
   } finally { releaseFirst(); await new Promise(resolve => app.server.close(resolve)); }
 });
+
+for (const fail of [true, false]) {
+  test(`a ${fail ? 'failed' : 'successful'} edit has the correct value after a concurrent sync and reopening the vault`, async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'posta-concurrent-vault-'));
+    const key = Buffer.alloc(32, 23);
+    const vault = new Vault(directory);
+    vault.key = Buffer.from(key);
+    t.after(async () => {
+      await vault.close();
+      assert.equal(resolve(directory, '..'), resolve(tmpdir()));
+      await rm(directory, { recursive: true, force: true });
+    });
+
+    const editStarted = Promise.withResolvers();
+    const editWrite = Promise.withResolvers();
+    const loaderStarted = Promise.withResolvers();
+    const loaderResult = Promise.withResolvers();
+    const save = vault.save.bind(vault);
+    let writes = 0;
+    vault.save = value => {
+      if (++writes !== 2) return save(value);
+      editStarted.resolve();
+      return editWrite.promise.then(() => {
+        if (fail) throw new Error('synthetic edit write failure');
+        return save(value);
+      });
+    };
+    const now = 1000000;
+    const engine = new Engine({
+      snapshot: { accounts: [activeAccount()] }, vault, now: () => now,
+      loader: () => { loaderStarted.resolve(); return loaderResult.promise; }
+    });
+    const id = 'test-account';
+    engine.enqueue(id);
+    const sync = engine.tick();
+    await loaderStarted.promise;
+    const edit = engine.updateMeta(id, { label: 'New label' }).then(() => null, error => error.code);
+    await editStarted.promise;
+    try {
+      loaderResult.resolve({ messages: [] });
+      await new Promise(setImmediate);
+      assert.equal(engine.state().accounts[0].label, '');
+    } finally {
+      editWrite.resolve();
+      await sync;
+    }
+    assert.equal(await edit, fail ? 'SAVE' : null);
+    await engine.close();
+    const snapshot = unseal(await readFile(join(directory, 'accounts.vault'), 'utf8'), key);
+    const reopened = new Engine({ snapshot, now: () => now + 500 });
+    assert.equal(reopened.account(id).label, fail ? '' : 'New label');
+    assert.equal(reopened.account(id).lastSync, now);
+    assert.equal(reopened.settings.paused, fail);
+    assert.equal(snapshot.pendingDispatch, null);
+  });
+}
+
+for (const afterDispatch of [false, true]) {
+  test(`reopening after an interruption ${afterDispatch ? 'after' : 'before'} dispatch enforces both cooldowns`, async () => {
+    let clock = 1000000, stored;
+    const first = activeAccount();
+    const second = { ...activeAccount(), id: 'second-account', email: 'second@example.com' };
+    const reservationStored = Promise.withResolvers();
+    const reservationFinished = Promise.withResolvers();
+    const dispatched = Promise.withResolvers();
+    const response = Promise.withResolvers();
+    const engine = new Engine({
+      snapshot: { accounts: [first, second], settings: { requestGap: 7, accountGap: 75 } },
+      now: () => clock,
+      vault: { save: async value => {
+        clock += 1200;
+        stored = structuredClone(value);
+        reservationStored.resolve();
+        await reservationFinished.promise;
+      } },
+      loader: () => { dispatched.resolve(); return response.promise; }
+    });
+    engine.enqueue(first.id);
+    const work = engine.tick();
+    try {
+      if (afterDispatch) {
+        reservationFinished.resolve();
+        await dispatched.promise;
+      } else await reservationStored.promise;
+      const recoveryTime = ++clock;
+      const calls = [];
+      const reopened = new Engine({
+        snapshot: stored, now: () => clock,
+        loader: async selected => { calls.push(selected.id); return { messages: [] }; }
+      });
+      reopened.enqueue(first.id);
+      reopened.enqueue(second.id);
+      clock = recoveryTime + 6999;
+      await reopened.tick();
+      assert.deepEqual(calls, []);
+      clock++;
+      await reopened.tick();
+      assert.deepEqual(calls, [second.id]);
+      clock = recoveryTime + 74999;
+      await reopened.tick();
+      assert.deepEqual(calls, [second.id]);
+      clock++;
+      await reopened.tick();
+      assert.deepEqual(calls, [second.id, first.id]);
+    } finally {
+      reservationFinished.resolve();
+      response.resolve({ messages: [] });
+      await work;
+    }
+  });
+}
 
 test('a closed vault rejects late saves and leaves the encrypted file intact', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'posta-closed-vault-'));

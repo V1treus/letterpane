@@ -10,9 +10,9 @@ A Windows mail client for multiple Microsoft accounts, with messages and verific
 
 ## Run
 
-**Single file:** place `Letterpane Portable 1.3.9.exe` in a writable folder and open it. You do not need to install Python or Node.js.
+**Single file:** place `Letterpane Portable 1.3.10.exe` in a writable folder and open it. You do not need to install Python or Node.js.
 
-**Folder version:** extract all of `Letterpane-1.3.9-win-x64.zip` and open `Letterpane.exe`.
+**Folder version:** extract all of `Letterpane-1.3.10-win-x64.zip` and open `Letterpane.exe`.
 
 Requires Windows 10/11 x64, .NET Framework 4.8 and [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/). The app uses the system WebView2 installation. The executable is currently unsigned.
 
@@ -93,7 +93,7 @@ Messages are shown as inert text. Remote images, HTML, attachments and trackers 
 Run `Letterpane Demo.exe` in the folder version, or:
 
 ```powershell
-& '.\Letterpane Portable 1.3.9.exe' --demo
+& '.\Letterpane Portable 1.3.10.exe' --demo
 ```
 
 Choose 10, 100 or 500 fictional accounts. No requests go to Microsoft and real tokens are rejected. Demo changes are discarded when closed. The sample mail remains in its original language when switching the interface language.
@@ -109,7 +109,7 @@ npm run demo
 npm run build:single
 ```
 
-Outputs are `dist/Letterpane 1.3.9` and `dist/Letterpane Portable 1.3.9.exe`. To create a ZIP, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. The first build downloads the WebView2 SDK from official NuGet. Previous release files are preserved; user profiles are excluded from the package.
+Outputs are `dist/Letterpane 1.3.10` and `dist/Letterpane Portable 1.3.10.exe`. To create a ZIP, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. The first build downloads the WebView2 SDK from official NuGet. Previous release files are preserved; user profiles are excluded from the package.
 
 Source folders: `src/` for mail, queue and storage; `public/` for the interface; `shared/locales/` for translations; `native/` for the Windows host and packaging; `test/` for offline tests with fictional data. See [contributing and translation guidance](CONTRIBUTING.md) and [third-party notices](THIRD-PARTY-NOTICES.md).
 
