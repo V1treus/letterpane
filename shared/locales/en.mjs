@@ -57,7 +57,7 @@ export default {
   "common.copy": "Copy",
   "mail.link": "Link from message",
   "mail.copyLink": "Copy link",
-  "mail.truncated": "Large message: only the first 512 KB were downloaded. Some content may be missing.",
+  "mail.truncated": "This message was shortened. Some content may be missing.",
   "mail.noText": "This message has no text content.",
   "groups.all": "All groups",
   "groups.none": "No group",
@@ -451,6 +451,7 @@ export default {
   "log.import": "Import: added {added}, updated {updated}, skipped {skipped}.",
   "log.accountError": "{email}: {error}",
   "log.bulk": "{action}: {count}. Skipped: {skipped}.",
+  "mail.loadRetry": "Couldn’t load messages. Retrying…",
   "count.accounts": {
     "one": "{count} account",
     "other": "{count} accounts"

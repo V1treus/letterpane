@@ -57,6 +57,7 @@ const token = initialToken || sessionStorage.getItem('letterpane-session') || ''
 if (initialToken) { sessionStorage.setItem('letterpane-session', token); history.replaceState(null, '', '/'); }
 let model = null, selectedAccount = null, selectedMessage = null, folder = 'inbox', filter = 'all', view = 'mail';
 let messages = [], loaded = false, connected = false, selectionVersion = 0;
+let messageLoadFailed = false;
 let sidebarSignature = '', messageSignature = '', readerSignature = '', detailSignature = '';
 let toastTimer, importCheckedText = '', importBusy = false, importGeneration = 0;
 let sidebarFavorites = false, managerFavorites = false, managerPage = 1, queuePage = 1;
@@ -193,6 +194,7 @@ function renderStatus() {
   if (!model) return;
   const now = Date.now(); let text, warning = false;
   if (!connected) { text = t('status.disconnected'); }
+  else if (view === 'mail' && selectedAccount && messageLoadFailed) { text = t('mail.loadRetry'); warning = true; }
   else if (model.settings.paused) { text = t('status.queuePaused'); warning = true; }
   else if (model.holdUntil > now) { text = t('status.hold', { duration: waitText(model.holdUntil - now) }); warning = true; }
   else if (model.active) { text = t('status.refreshing', { email: model.active.email }); }
@@ -211,13 +213,15 @@ function renderMessages() {
   const blocked = !!current()?.authBlocked;
   const filtered = messages.filter(m => (filter === 'all' || (filter === 'codes' ? m.codes?.length : m.links?.length)) && `${m.from} ${m.subject} ${m.text}`.toLocaleLowerCase().includes(search));
   $('message-total').textContent = filtered.length === messages.length ? String(messages.length) : `${filtered.length}/${messages.length}`;
-  const signature = JSON.stringify([filtered, selectedMessage, selectedAccount, loaded, filter, search, blocked]);
+  const signature = JSON.stringify([filtered, selectedMessage, selectedAccount, loaded, filter, search, blocked, messageLoadFailed]);
   if (signature === messageSignature) return;
   messageSignature = signature;
   const oldScroll = $('messages').scrollTop;
   if (!filtered.length) {
-    const empty = h('div', { class: 'list-empty' }, icon(search || filter !== 'all' ? 'search' : 'inbox'), h('strong', {}, search || filter !== 'all' ? t('mail.noMatches') : loaded ? t('mail.empty') : t('mail.notLoaded')), search || filter !== 'all' ? h('span', {}, t('mail.changeQuery')) : loaded ? h('span', {}, t('mail.tryFolder')) : blocked ? null : h('span', {}, t('mail.refreshHint')));
-    if (!blocked && !loaded && !search && filter === 'all') empty.append(h('button', { class: 'button', onclick: act(syncSelected) }, icon('refresh'), t('sync.refreshAccount')));
+    const empty = messageLoadFailed
+      ? h('div', { class: 'list-empty' }, icon('inbox'), h('strong', {}, t('mail.loadRetry')))
+      : h('div', { class: 'list-empty' }, icon(search || filter !== 'all' ? 'search' : 'inbox'), h('strong', {}, search || filter !== 'all' ? t('mail.noMatches') : loaded ? t('mail.empty') : t('mail.notLoaded')), search || filter !== 'all' ? h('span', {}, t('mail.changeQuery')) : loaded ? h('span', {}, t('mail.tryFolder')) : blocked ? null : h('span', {}, t('mail.refreshHint')));
+    if (!messageLoadFailed && !blocked && !loaded && !search && filter === 'all') empty.append(h('button', { class: 'button', onclick: act(syncSelected) }, icon('refresh'), t('sync.refreshAccount')));
     replaceContent($('messages'), empty);
   } else {
     replaceContent($('messages'), ...filtered.map(m => {
@@ -447,6 +451,7 @@ function setView(next) {
   if (view === 'codes') refreshCodes().catch(error => notify(error.message));
 }
 async function chooseAccount(id, { nextFolder = folder, messageId = null } = {}) {
+  messageLoadFailed = false;
   selectedAccount = id; selectedMessage = messageId; messages = []; loaded = false; loadedAccountKey = ''; selectionVersion++; folder = nextFolder;
   document.querySelectorAll('[data-folder]').forEach(n => n.classList.toggle('active', n.dataset.folder === folder));
   const sidebarRows = selectAccounts(model.accounts, { locale: getIntlLocale(), q: $('sidebar-search').value, favorites: sidebarFavorites, sort: 'favorites' });
@@ -463,12 +468,21 @@ function accountCacheKey() { const account = current(); return `${selectedAccoun
 async function fetchMessages() {
   if (!selectedAccount) return;
   const request = ++selectionVersion, id = selectedAccount, key = accountCacheKey();
-  const result = await api(`/accounts/${id}/messages?folder=${folder}`);
+  let result;
+  try { result = await api(`/accounts/${id}/messages?folder=${folder}`); }
+  catch {
+    if (request !== selectionVersion || id !== selectedAccount) return;
+    messageLoadFailed = true;
+    renderMessages();
+    renderStatus();
+    return;
+  }
   if (request !== selectionVersion || id !== selectedAccount) return;
+  messageLoadFailed = false;
   messages = result.messages; loaded = result.loaded; loadedAccountKey = key;
   if (!messages.some(m => m.id === selectedMessage)) selectedMessage = model.settings.autoSelect ? messages[0]?.id || null : null;
   if (selectedMessage && model.settings.readerPosition === 'focus' && model.settings.autoSelect) $('mail-layout').classList.add('show-reader');
-  renderMessages(); renderReader();
+  renderMessages(); renderReader(); renderStatus();
 }
 async function syncSelected() {
   if (!selectedAccount) return;
@@ -483,15 +497,19 @@ const poll = coalescedUpdater(async () => {
     if (model) query.set('since', model.revision);
     if (selectedAccount && view === 'mail') { query.set('reading', selectedAccount); query.set('folder', folder); }
     const next = await api(`/state?${query}`); connected = true;
-    if (next.unchanged) { renderStatus(); return; }
+    if (next.unchanged) {
+      if (view === 'mail' && selectedAccount && (messageLoadFailed || loadedAccountKey !== accountCacheKey())) await fetchMessages();
+      renderStatus();
+      return;
+    }
     modelReceivedAt = Date.now();
     const changed = !model || model.revision !== next.revision;
     model = next;
     const ids = new Set(model.accounts.map(a => a.id));
     for (const id of selectedIds) if (!ids.has(id)) selectedIds.delete(id);
-    if (!ids.has(selectedAccount)) { selectedAccount = model.accounts[0]?.id || null; selectedMessage = null; messages = []; loaded = false; loadedAccountKey = ''; }
+    if (!ids.has(selectedAccount)) { selectedAccount = model.accounts[0]?.id || null; selectedMessage = null; messages = []; loaded = false; loadedAccountKey = ''; messageLoadFailed = false; }
     applyModelAppearance(); renderGroups(); renderSidebar(); renderHeader(); renderDetail(); renderManager();
-    if (selectedAccount && (loadedAccountKey !== accountCacheKey() || !messageSignature)) await fetchMessages();
+    if (view === 'mail' && selectedAccount && (messageLoadFailed || loadedAccountKey !== accountCacheKey() || !messageSignature)) await fetchMessages();
     if (changed && view === 'codes') await refreshCodes();
     if (!selectedAccount) { renderMessages(); renderReader(); }
   } catch { connected = false; if (model) renderStatus(); else $('status-text').textContent = t('session.openFailed'); }
@@ -499,6 +517,7 @@ const poll = coalescedUpdater(async () => {
 
 document.querySelectorAll('[data-view]').forEach(node => node.addEventListener('click', () => setView(node.dataset.view)));
 document.querySelectorAll('[data-folder]').forEach(node => node.addEventListener('click', act(async () => {
+  messageLoadFailed = false;
   folder = node.dataset.folder; selectedMessage = null; messages = []; loaded = false;
   document.querySelectorAll('[data-folder]').forEach(n => n.classList.toggle('active', n === node));
   $('mail-layout').classList.remove('show-reader'); renderHeader(); renderMessages(); renderReader(); await fetchMessages();

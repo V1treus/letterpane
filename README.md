@@ -10,9 +10,9 @@
 
 ## Запуск
 
-**Один файл:** скачайте или соберите `Letterpane Portable 1.3.10.exe`, поместите в доступную для записи папку и запустите. Python и Node.js устанавливать не нужно.
+**Один файл:** скачайте или соберите `Letterpane Portable 1.3.11.exe`, поместите в доступную для записи папку и запустите. Python и Node.js устанавливать не нужно.
 
-**Версия с папкой:** распакуйте весь `Letterpane-1.3.10-win-x64.zip` и откройте `Letterpane.exe`.
+**Версия с папкой:** распакуйте весь `Letterpane-1.3.11-win-x64.zip` и откройте `Letterpane.exe`.
 
 Требования: Windows 10/11 x64, .NET Framework 4.8 и [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/). Сборка использует системный WebView2. EXE пока не подписан сертификатом издателя.
 
@@ -101,7 +101,7 @@ HTTP 429 учитывает `Retry-After`; ограничение IMAP прио�
 ## Демо
 
 ```powershell
-& '.\Letterpane Portable 1.3.10.exe' --demo
+& '.\Letterpane Portable 1.3.11.exe' --demo
 ```
 
 В версии с папкой можно запустить `Letterpane Demo.exe`. Доступны 10, 100 и 500 вымышленных ящиков. Обращений к Microsoft нет; настоящие токены не принимаются. Изменения деморежима исчезают после закрытия.
@@ -119,7 +119,7 @@ npm run demo
 npm run build:single
 ```
 
-Сборки: `dist/Letterpane 1.3.10` и `dist/Letterpane Portable 1.3.10.exe`. Для архива: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. При первой сборке SDK WebView2 скачивается из официального NuGet. Предыдущие версии сборщик не перезаписывает. Пользовательские профили не включаются в поставку.
+Сборки: `dist/Letterpane 1.3.11` и `dist/Letterpane Portable 1.3.11.exe`. Для архива: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. При первой сборке SDK WebView2 скачивается из официального NuGet. Предыдущие версии сборщик не перезаписывает. Пользовательские профили не включаются в поставку.
 
 `src/` — почта, очередь, настройки и хранилище; `public/` — интерфейс; `shared/locales/` — переводы; `native/` — окно Windows и упаковка; `test/` — автономные тесты с вымышленными данными. Изменения — в [CHANGELOG.md](CHANGELOG.md), правила интерфейса — в [DESIGN.md](DESIGN.md), работа с исходниками — в [CONTRIBUTING.md](CONTRIBUTING.md).
 

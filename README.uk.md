@@ -10,9 +10,9 @@
 
 ## Запуск
 
-**Один файл:** покладіть `Letterpane Portable 1.3.10.exe` у папку з дозволом на запис і запустіть. Установлювати Python або Node.js не потрібно.
+**Один файл:** покладіть `Letterpane Portable 1.3.11.exe` у папку з дозволом на запис і запустіть. Установлювати Python або Node.js не потрібно.
 
-**Версія з папкою:** повністю розпакуйте `Letterpane-1.3.10-win-x64.zip` і відкрийте `Letterpane.exe`.
+**Версія з папкою:** повністю розпакуйте `Letterpane-1.3.11-win-x64.zip` і відкрийте `Letterpane.exe`.
 
 Потрібні Windows 10/11 x64, .NET Framework 4.8 та [Microsoft Edge WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/). Застосунок використовує системний WebView2. EXE наразі не підписано сертифікатом видавця.
 
@@ -93,7 +93,7 @@ HTTP 429 враховує `Retry-After`. Обмеження IMAP призупи�
 Відкрийте `Letterpane Demo.exe` у версії з папкою або виконайте:
 
 ```powershell
-& '.\Letterpane Portable 1.3.10.exe' --demo
+& '.\Letterpane Portable 1.3.11.exe' --demo
 ```
 
 Доступні 10, 100 і 500 вигаданих скриньок. Запитів до Microsoft немає, справжні токени не приймаються. Зміни зникають після закриття. Приклад листування зберігає свою початкову мову після перемикання інтерфейсу.
@@ -109,7 +109,7 @@ npm run demo
 npm run build:single
 ```
 
-Результат: `dist/Letterpane 1.3.10` та `dist/Letterpane Portable 1.3.10.exe`. Для ZIP: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. Перша збірка завантажує SDK WebView2 з офіційного NuGet. Старі збірки зберігаються, профілі користувача не входять до пакета.
+Результат: `dist/Letterpane 1.3.11` та `dist/Letterpane Portable 1.3.11.exe`. Для ZIP: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/build.ps1 -Zip`. Перша збірка завантажує SDK WebView2 з офіційного NuGet. Старі збірки зберігаються, профілі користувача не входять до пакета.
 
 Каталоги: `src/` — пошта, черга й сховище; `public/` — інтерфейс; `shared/locales/` — переклади; `native/` — вікно Windows і пакування; `test/` — автономні тести з вигаданими даними. Дивіться [правила внесків і перекладів](CONTRIBUTING.md) та [ліцензії залежностей](THIRD-PARTY-NOTICES.md).
 

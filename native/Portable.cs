@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Web.Script.Serialization;
 
 // This executable is an additional single-file distribution. It never modifies
 // the existing folder distribution and never embeds a user's .data profile.
@@ -43,16 +44,43 @@ internal static class PortableProgram {
         try {
             if (File.ReadAllText(Path.Combine(directory, ".complete")) != PortablePayload.Sha256) return false;
             using (var input = Assembly.GetExecutingAssembly().GetManifestResourceStream("Letterpane.Payload.zip"))
-            using (var archive = new ZipArchive(input, ZipArchiveMode.Read)) {
-                foreach (var entry in archive.Entries) {
-                    if (String.IsNullOrEmpty(entry.Name)) continue;
-                    string target = SafeEntryPath(directory, entry.FullName);
-                    var file = new FileInfo(target);
-                    if (!file.Exists || file.Length != entry.Length) return false;
+            using (var archive = new ZipArchive(input, ZipArchiveMode.Read))
+            using (var sha = SHA256.Create()) {
+                var entry = archive.GetEntry("release-manifest.json");
+                using (var manifest = entry.Open()) {
+                    if (!MatchesFile(directory, entry.FullName, entry.Length, Hash(sha, manifest), sha)) return false;
+                }
+                using (var reader = new StreamReader(entry.Open(), Encoding.UTF8)) {
+                    var manifest = new JavaScriptSerializer().Deserialize<RuntimeManifest>(reader.ReadToEnd());
+                    if (manifest.files.Length + 1 != archive.Entries.Count) return false;
+                    foreach (var file in manifest.files) {
+                        if (!MatchesFile(directory, file.path, file.size, file.sha256, sha)) return false;
+                    }
                 }
             }
             return true;
         } catch { return false; }
+    }
+
+    public sealed class RuntimeManifest {
+        public RuntimeFile[] files { get; set; }
+    }
+
+    public sealed class RuntimeFile {
+        public string path { get; set; }
+        public long size { get; set; }
+        public string sha256 { get; set; }
+    }
+
+    private static string Hash(SHA256 sha, Stream input) {
+        return BitConverter.ToString(sha.ComputeHash(input)).Replace("-", "");
+    }
+
+    private static bool MatchesFile(string directory, string name, long size, string expected, SHA256 sha) {
+        string path = SafeEntryPath(directory, name);
+        using (var file = File.OpenRead(path)) {
+            return file.Length == size && String.Equals(Hash(sha, file), expected, StringComparison.OrdinalIgnoreCase);
+        }
     }
 
     private static string SafeEntryPath(string directory, string name) {
@@ -73,7 +101,14 @@ internal static class PortableProgram {
                 string destination = Path.Combine(TempRoot, PortablePayload.Sha256);
                 if (CacheReady(destination)) return destination;
                 // Never overwrite a runtime potentially being used by another window.
-                if (Directory.Exists(destination)) destination += "-" + Guid.NewGuid().ToString("N");
+                if (Directory.Exists(destination)) {
+                    foreach (string alternative in Directory.EnumerateDirectories(TempRoot, PortablePayload.Sha256 + "-*")) {
+                        Guid suffix;
+                        if (Guid.TryParseExact(Path.GetFileName(alternative).Substring(PortablePayload.Sha256.Length + 1), "N", out suffix) &&
+                            CacheReady(alternative)) return alternative;
+                    }
+                    destination += "-" + Guid.NewGuid().ToString("N");
+                }
                 string staging = Path.Combine(TempRoot, ".stage-" + Guid.NewGuid().ToString("N"));
                 CheckContained(staging); CheckContained(destination);
                 Directory.CreateDirectory(staging);

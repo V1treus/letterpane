@@ -57,7 +57,7 @@ export default {
   "common.copy": "Копировать",
   "mail.link": "Ссылка из письма",
   "mail.copyLink": "Копировать ссылку",
-  "mail.truncated": "Большое письмо: загружены первые 512 КБ. Часть содержимого может отсутствовать.",
+  "mail.truncated": "Письмо сокращено. Часть содержимого может отсутствовать.",
   "mail.noText": "Текстовая часть письма отсутствует.",
   "groups.all": "Все группы",
   "groups.none": "Без группы",
@@ -451,6 +451,7 @@ export default {
   "log.import": "Импорт: добавлено {added}, обновлено {updated}, пропущено {skipped}.",
   "log.accountError": "{email}: {error}",
   "log.bulk": "{action}: {count}. Пропущено: {skipped}.",
+  "mail.loadRetry": "Не удалось загрузить письма. Повторяем…",
   "count.accounts": {
     "one": "{count} ящик",
     "few": "{count} ящика",

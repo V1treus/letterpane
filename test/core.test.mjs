@@ -238,6 +238,14 @@ test('HTML email becomes inert text and no HTML or image is returned to the rend
   const message = await parseMessage(Buffer.from('From: Test <test@example.com>\r\nSubject: Test\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Code: <b>123456</b></p><script>alert(1)</script><img src="https://tracker.example/x">'), { uid: 1, size: 300 });
   assert.equal('html' in message, false); assert.ok(message.codes.includes('123456')); assert.equal(message.text.includes('<script>'), false);
 });
+test('a long decoded body reports that its displayed text was shortened', async () => {
+  const source = Buffer.from('Content-Type: text/plain; charset=utf-8\r\n\r\n' + 'synthetic text '.repeat(8000));
+  const message = await parseMessage(source, { uid: 1, size: source.length });
+  assert.ok(source.length < 512 * 1024);
+  assert.equal(message.text.length, 100000);
+  assert.equal(message.truncated, true);
+});
+
 test('IMAP requests are read-only and batched; cached bodies are reused and UIDVALIDITY resets cache', async () => {
   let validity = 1, bodyFetches = 0, tokenSaves = 0, readOnly;
   const account = { email: 'me@outlook.com', accessToken: 'access', refreshToken: 'previous', cache: {} };

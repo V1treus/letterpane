@@ -64,7 +64,8 @@ export function extractSignals(text) {
 
 export async function parseMessage(source, metadata) {
   const parsed = await simpleParser(source, { skipHtmlToText: false, skipTextToHtml: true, skipImageLinks: true, maxHtmlLengthToParse: MAX_SOURCE });
-  const text = (parsed.text || '').slice(0, 100000);
+  const decodedText = parsed.text || '';
+  const text = decodedText.slice(0, 100000);
   // HTML is never sent to the renderer. No images, trackers, scripts or clickable links.
   return {
     ...metadata,
@@ -73,7 +74,7 @@ export async function parseMessage(source, metadata) {
     text,
     ...extractSignals(text),
     preview: text.replace(/\s+/g, ' ').slice(0, 160),
-    truncated: metadata.size > MAX_SOURCE
+    truncated: metadata.size > MAX_SOURCE || text.length < decodedText.length
   };
 }
 

@@ -57,7 +57,7 @@ export default {
   "common.copy": "Копіювати",
   "mail.link": "Посилання з листа",
   "mail.copyLink": "Копіювати посилання",
-  "mail.truncated": "Великий лист: завантажено лише перші 512 КБ. Частина вмісту може бути відсутня.",
+  "mail.truncated": "Лист скорочено. Частина вмісту може бути відсутня.",
   "mail.noText": "У листі немає текстової частини.",
   "groups.all": "Усі групи",
   "groups.none": "Без групи",
@@ -451,6 +451,7 @@ export default {
   "log.import": "Імпорт: додано {added}, оновлено {updated}, пропущено {skipped}.",
   "log.accountError": "{email}: {error}",
   "log.bulk": "{action}: {count}. Пропущено: {skipped}.",
+  "mail.loadRetry": "Не вдалося завантажити листи. Повторюємо…",
   "count.accounts": {
     "one": "{count} скринька",
     "few": "{count} скриньки",

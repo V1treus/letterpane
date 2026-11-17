@@ -29,6 +29,18 @@ test.beforeEach(async ({ page, app }) => {
   await expect(page.locator('#status-text')).toHaveText('Ready');
 });
 
+test('cached messages recover after a transient error without a new state revision', async ({ page, app }) => {
+  let attempts = 0;
+  const revision = app.engine.revision;
+  await page.route('**/api/accounts/*/messages?*', route => ++attempts === 1 ? route.abort('failed') : route.continue());
+  await page.reload();
+  await expect(page.locator('#status-text')).toContainText('Retrying');
+  await expect(page.locator('#messages button.message').first()).toBeVisible();
+  await expect(page.locator('#status-text')).toHaveText('Ready');
+  expect(app.engine.revision).toBe(revision);
+  expect(attempts).toBe(2);
+});
+
 test('restored IMAP denial retains its explanation and cannot dispatch a new login', async ({ page, app }) => {
   const snapshot = app.engine.snapshot();
   const account = snapshot.accounts[0];
